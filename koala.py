@@ -82,7 +82,10 @@ if __name__ == '__main__':
 		"https://medium.com/feed/reloading", 
 		"https://medium.com/feed/dev-channel", 
 		"https://blog.prototypr.io/feed", 
-		"https://uxdesign.cc/feed"]
+		"https://uxdesign.cc/feed",
+		"https://medium.com/fed-or-dead",
+		"https://hackernoon.com/",
+		"https://medium.com/the-vue-point"]
 
 		for url in urls:
 			rss = fp.parse(url)
@@ -98,5 +101,11 @@ if __name__ == '__main__':
 				handle_entries(rss.entries, 'uxdesign')
 			elif "dev-channel" in url:
 				handle_entries(rss.entries, 'dev channel')
-			
+			elif "dead" in url:
+				handle_entries(rss.entries, 'dead')
+			elif "hackernoon" in url:
+				handle_entries(rss.entries, 'hackernoon')
+			elif "vue-point" in url:
+				handle_entries(rss.entries, 'vue point')
+
 		time.sleep(43200)
