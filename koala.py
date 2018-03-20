@@ -50,6 +50,10 @@ def handle_entries(entries, publication_name):
 		cur.close()
 	tweet(new_entries, publication_name)
 
+def init(publication_name):
+	rss = fp.parse(urls[publication_name])
+	handle_entries(rss.entries, publication_name)
+
 if __name__ == '__main__':
 	#Auth for tweepy 
 	C_KEY = os.environ.get('C_KEY')
@@ -76,36 +80,17 @@ if __name__ == '__main__':
 
 	while True:
 		#Get feed
-		
-		urls = ["https://medium.freecodecamp.org/feed", 
-		"https://medium.com/feed/javascript-scene", 
-		"https://medium.com/feed/reloading", 
-		"https://medium.com/feed/dev-channel", 
-		"https://blog.prototypr.io/feed", 
-		"https://uxdesign.cc/feed",
-		"https://medium.com/fed-or-dead",
-		"https://hackernoon.com/",
-		"https://medium.com/the-vue-point"]
+		urls = {
+			"free_code_camp": "https://medium.freecodecamp.org/feed",
+			"javascript_scene": "https://medium.com/feed/javascript-scene",
+			"reloading": "https://medium.com/feed/reloading",
+			"prototypr": "https://blog.prototypr.io/feed",
+			"uxdesign": "https://uxdesign.cc/feed",
+			"dev_channel": "https://medium.com/feed/dev-channel",
+			"hackernoon": "https://hackernoon.com/feed",
+			"vue": "https://medium.com/feed/the-vue-point"
+		}
 
-		for url in urls:
-			rss = fp.parse(url)
-			if "freecodecamp" in url:
-				handle_entries(rss.entries, 'free code camp')
-			elif "javascript" in url:
-				handle_entries(rss.entries, 'javascript scene')
-			elif "reloading" in url:
-				handle_entries(rss.entries, 'reloading')
-			elif "prototypr" in url:
-				handle_entries(rss.entries, 'prototypr')
-			elif "uxdesign" in url:
-				handle_entries(rss.entries, 'uxdesign')
-			elif "dev-channel" in url:
-				handle_entries(rss.entries, 'dev channel')
-			elif "dead" in url:
-				handle_entries(rss.entries, 'dead')
-			elif "hackernoon" in url:
-				handle_entries(rss.entries, 'hackernoon')
-			elif "vue-point" in url:
-				handle_entries(rss.entries, 'vue point')
+		map(init, urls)
 
 		time.sleep(43200)
