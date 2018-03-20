@@ -1,7 +1,6 @@
-import feedparser as fp
-import tweepy as tp
-import os
-import csv
+import feedparser 
+import tweepy 
+import store
 import time
 from datetime import datetime
 import psycopg2
@@ -9,17 +8,23 @@ import urllib.parse
 
 def tweet(new_entries, publication_name):
 	for new_entry in new_entries:
-		tweet = new_entry[1] + " " + new_entry[0]
-		try:
-			api.update_status(tweet)
-			cur = conn.cursor()
-			cur.execute(insert_sql,(new_entry[0][21:], new_entry[2], publication_name))
-			conn.commit()
-			cur.close()
-		except tp.error.TweepError as e:
-			print(e.response.text)
-			print(new_entry[0][21:])
 
+		entry_hashtags = new_entry[1]
+		entry_url = new_entry[0] # e.g. https://medium.com/p/99099da313b5
+
+		tweet_msg = entry_hashtags + " " + entry_url
+
+		try:
+			api.update_status(tweet_msg)
+
+			# insert entry in db 
+			entry_id = entry_url[21:] # e.g. 99099da313b5
+			entry_published_date = new_entry[2]
+			db_insert_entry(entry_id, entry_published_date, publication_name)
+			
+		except tweepy.error.TweepError as e:
+			print(e.response.text)
+			print(entry_id)
 
 def manipulate_entry_tags(tags):
 	hashtags = ""
@@ -34,63 +39,89 @@ def manipulate_entry_tags(tags):
 		hashtags += "#" + hashtag + " "
 	return hashtags
 
-
 def handle_entries(entries, publication_name):
 	new_entries = []
 	for entry in entries:
-		cur = conn.cursor()
+		cur = db_con.cursor()
+
+		# cleaning date for db insert 
 		entry_published_date = str.replace(entry.published, ' GMT', '')
 		formated_publication_dt = datetime.strptime(entry_published_date, '%a, %d %b %Y %H:%M:%S')
-		cur.execute(select_sql,(entry.id[21:],))
-		row = cur.fetchone()
-	
-		if not row:
+
+		# check if entry retrieved already exists
+		cur.execute(select_statment,(entry.id[21:],))
+		entry_row = cur.fetchone()
+		
+		# entry is new
+		if not entry_row:
 			entry_tags = manipulate_entry_tags(entry.tags)
 			new_entries.append([entry.id, entry_tags, formated_publication_dt])
 		cur.close()
+
+	# tweet new entries
 	tweet(new_entries, publication_name)
 
 def init(publication_name):
-	rss = fp.parse(urls[publication_name])
+	rss = feedparser.parse(publications[publication_name])
 	handle_entries(rss.entries, publication_name)
 
-if __name__ == '__main__':
-	#Auth for tweepy 
-	C_KEY = os.environ.get('C_KEY')
-	C_SECRET = os.environ.get('C_SECRET')
-	A_TOKEN = os.environ.get('A_TOKEN')
-	A_TOKEN_SECRET = os.environ.get('A_TOKEN_SECRET')
+def db_insert_entry(entry_id, published_at, publication_name):
+	cur = db_con.cursor()
+	cur.execute(insert_statment,(entry_id, published_at, publication_name))
+	db_con.commit()
+	cur.close()
 
-	auth = tp.OAuthHandler(C_KEY, C_SECRET)
-	auth.set_access_token(A_TOKEN, A_TOKEN_SECRET)  
-	api = tp.API(auth)
+def db_queries():
+	insert_statment = "INSERT INTO medium_publications (publication_id, published_at, publication_name) VALUES (%s, %s, %s)"
+	select_statment = "SELECT 1 FROM medium_publications WHERE publication_id=%s"
 
+	return (insert_statment, select_statment)
+
+def db_connection_setup():
+	""" 
+	Setup database
+	:return: database connection object
+	"""
+	# get db url
 	urllib.parse.uses_netloc.append("postgres")
-	url = urllib.parse.urlparse(os.environ["DATABASE_URL"])
-	insert_sql = "INSERT INTO medium_publications (publication_id, published_at, publication_name) VALUES (%s, %s, %s)"
-	select_sql = "SELECT 1 FROM medium_publications WHERE publication_id=%s"
+	db_url = urllib.parse.urlparse(keys['db_url'])
 
-	conn = psycopg2.connect(
-    	database=url.path[1:],
-    	user=url.username,
-    	password=url.password,
-    	host=url.hostname,
-    	port=url.port
-	)
+	# db connection
+	try:
+		con = psycopg2.connect(
+			database=db_url.path[1:],
+			user=db_url.username,
+			password=db_url.password,
+			host=db_url.hostname,
+			port=db_url.port
+		)
+	except psycopg2.OperationalError as e:
+		print('Unable to connect!\n{0}').format(e)
+		sys.exit(1)
+	else: 
+		return con
+
+def setup_twitter_api_connection():
+	""" 
+	Setup twitter api connection
+	:return: tweepy api object, to be used for tweeting
+	"""
+	auth = tweepy.OAuthHandler(keys['cons_key'], keys['cons_secret'])
+	auth.set_access_token(keys['access_token'], keys['access_secret'])  
+	return tweepy.API(auth)
+
+
+if __name__ == '__main__':
+	publications = store.publications
+	keys = store.keys
+	
+	api = setup_twitter_api_connection()
+
+	db_con = db_connection_setup()
+	insert_statment, select_statment = db_queries()
 
 	while True:
-		#Get feed
-		urls = {
-			"free_code_camp": "https://medium.freecodecamp.org/feed",
-			"javascript_scene": "https://medium.com/feed/javascript-scene",
-			"reloading": "https://medium.com/feed/reloading",
-			"prototypr": "https://blog.prototypr.io/feed",
-			"uxdesign": "https://uxdesign.cc/feed",
-			"dev_channel": "https://medium.com/feed/dev-channel",
-			"hackernoon": "https://hackernoon.com/feed",
-			"vue": "https://medium.com/feed/the-vue-point"
-		}
-
-		map(init, urls)
+		for publication_name in publications:
+			init(publication_name)
 
 		time.sleep(43200)
