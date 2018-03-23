@@ -11,6 +11,7 @@ def tweet(new_entries, publication_name):
 
 		entry_hashtags = new_entry[1]
 		entry_url = new_entry[0] # e.g. https://medium.com/p/99099da313b5
+		entry_id = entry_url[21:] # e.g. 99099da313b5
 
 		tweet_msg = entry_hashtags + " " + entry_url
 
@@ -18,7 +19,6 @@ def tweet(new_entries, publication_name):
 			api.update_status(tweet_msg)
 
 			# insert entry in db 
-			entry_id = entry_url[21:] # e.g. 99099da313b5
 			entry_published_date = new_entry[2]
 			db_insert_entry(entry_id, entry_published_date, publication_name)
 			
